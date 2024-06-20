@@ -93,5 +93,22 @@ class User
 
         return $stmt->execute();
     }
+
+    public function login($email, $password)
+    {
+        $query = "SELECT * FROM " . $this->table_name . " WHERE email = :email";
+        $stmt = $this->conn->prepare($query);
+
+        $stmt->bindParam(":email", $email);
+        $stmt->execute();
+
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($user && password_verify($password, $user['password'])) {
+            return $user;
+        } else {
+            return false;
+        }
+    }
 }
 ?>

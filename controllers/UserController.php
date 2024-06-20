@@ -4,11 +4,39 @@
 class UserController
 {
     private $db;
+    private $userModel;
+    private $videoModel;
+    private $rentalModel;
 
     public function __construct()
     {
         $database = new Database();
         $this->db = $database->getConnection();
+        $this->userModel = new User($this->db);
+        $this->videoModel = new Video($this->db);
+        $this->rentalModel = new Rental($this->db);
+    }
+
+    public function rentVideo()
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->rentalModel->user_id = $_SESSION['user_id'];
+            $this->rentalModel->video_id = $_POST['video_id'];
+            $this->rentalModel->rental_date = date('Y-m-d H:i:s');
+            $this->rentalModel->due_date = date('Y-m-d H:i:s', strtotime('+7 days'));
+            $this->rentalModel->fee = $_POST['fee'];
+
+            if ($this->rentalModel->create()) {
+                header('Location: ' . BASE_URL . '/index.php?controller=user&action=dashboard');
+                exit;
+            } else {
+                echo "Unable to rent video.";
+            }
+        } else {
+            $video_id = $_GET['video_id'];
+            $video = $this->videoModel->readOne($video_id);
+            loadView('user/rentVideo', ['video' => $video]);
+        }
     }
 
     public function login()
@@ -39,6 +67,13 @@ class UserController
         } else {
             loadView('user/login');
         }
+    }
+
+    public function dashboard()
+    {
+        $user_id = $_SESSION['user_id'];
+        $rentals = $this->rentalModel->readByUser($user_id);
+        loadView('user/dashboard', ['rentals' => $rentals]);
     }
 
     public function register()
