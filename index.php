@@ -7,6 +7,7 @@ require_once 'config/config.php';
 require_once 'config/utils.php';
 require_once 'models/Video.php';
 require_once 'models/User.php';
+require_once 'models/Rental.php';
 
 // Load the controller and action from the URL parameters
 $controllerName = isset($_GET['controller']) ? ucfirst($_GET['controller']) . 'Controller' : 'HomeController';

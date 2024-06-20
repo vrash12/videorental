@@ -188,28 +188,44 @@ class AdminController
         }
     }
 }
-
 class UserController
 {
     private $db;
+    private $videoModel;
+    private $rentalModel;
 
     public function __construct()
     {
+        checkRole('user'); // Ensure only users can access this controller
         $database = new Database();
         $this->db = $database->getConnection();
+        $this->videoModel = new Video($this->db);
+        $this->rentalModel = new Rental($this->db);
     }
 
-    public function profile()
+    public function browseVideos()
     {
-        checkRole('user'); // Ensure only regular users can access this method
-        $stmt = $this->db->prepare('SELECT * FROM users WHERE id = :id');
-        $stmt->execute(['id' => $_SESSION['user_id']]);
-        $user = $stmt->fetch();
-        
-        loadView('user/profile', ['user' => $user]);
+        $videos = $this->videoModel->readAll();
+        loadView('user/browseVideos', ['videos' => $videos]);
     }
 
-    // Additional user-specific methods
+    public function rentVideo()
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->rentalModel->user_id = $_SESSION['user_id'];
+            $this->rentalModel->video_id = $_POST['video_id'];
+            $this->rentalModel->rental_date = date('Y-m-d H:i:s');
+            $this->rentalModel->due_date = date('Y-m-d H:i:s', strtotime('+7 days'));
+            $this->rentalModel->fee = $_POST['fee'];
+
+            if ($this->rentalModel->create()) {
+                header('Location: ' . BASE_URL . '/index.php?controller=user&action=browseVideos');
+                exit;
+            } else {
+                echo "Unable to rent video.";
+            }
+        }
+    }
 }
 
 ?>
