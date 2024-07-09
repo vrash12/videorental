@@ -2,6 +2,10 @@
 // Start the session
 session_start();
 
+// Enable error reporting
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 // Define the base URL
 define('BASE_URL', 'http://localhost/VideoRentalSystem');
 
@@ -11,6 +15,7 @@ require_once 'config/utils.php';
 require_once 'models/Video.php';
 require_once 'models/User.php';
 require_once 'models/Rental.php';
+require_once 'models/Payment.php';
 
 // Utility function to load views
 function loadView($view, $data = [])
@@ -44,4 +49,3 @@ if (method_exists($controller, $actionName)) {
 } else {
     die('Action not found: ' . $actionName);
 }
-?>

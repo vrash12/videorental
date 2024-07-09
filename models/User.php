@@ -18,7 +18,7 @@ class User
         $this->conn = $db;
     }
 
-    // Create new user
+
     public function create()
     {
         $query = "INSERT INTO " . $this->table_name . " (name, email, password, role, address, phone) VALUES (:name, :email, :password, :role, :address, :phone)";
@@ -41,7 +41,7 @@ class User
         return $stmt->execute();
     }
 
-    // Read all users
+
     public function readAll()
     {
         $query = "SELECT * FROM " . $this->table_name;
@@ -51,7 +51,7 @@ class User
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    // Read one user
+
     public function readOne($id)
     {
         $query = "SELECT * FROM " . $this->table_name . " WHERE id = :id";
@@ -62,29 +62,38 @@ class User
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    // Update user
+
     public function update()
     {
-        $query = "UPDATE " . $this->table_name . " SET name = :name, email = :email, role = :role, address = :address, phone = :phone WHERE id = :id";
+        $query = "UPDATE " . $this->table_name . " SET name = :name, email = :email, role = :role, address = :address, phone = :phone";
+        if (!empty($this->password)) {
+            $query .= ", password = :password";
+        }
+        $query .= " WHERE id = :id";
         $stmt = $this->conn->prepare($query);
-
+    
         $this->name = htmlspecialchars(strip_tags($this->name));
         $this->email = htmlspecialchars(strip_tags($this->email));
         $this->role = htmlspecialchars(strip_tags($this->role));
         $this->address = htmlspecialchars(strip_tags($this->address));
         $this->phone = htmlspecialchars(strip_tags($this->phone));
-
+    
         $stmt->bindParam(":name", $this->name);
         $stmt->bindParam(":email", $this->email);
         $stmt->bindParam(":role", $this->role);
         $stmt->bindParam(":address", $this->address);
         $stmt->bindParam(":phone", $this->phone);
+        if (!empty($this->password)) {
+            $stmt->bindParam(":password", $this->password);
+        }
         $stmt->bindParam(":id", $this->id);
-
+    
         return $stmt->execute();
     }
+    
 
-    // Delete user
+
+    
     public function delete()
     {
         $query = "DELETE FROM " . $this->table_name . " WHERE id = :id";
@@ -110,5 +119,21 @@ class User
             return false;
         }
     }
+
+    public function getUserActivityReports()
+    {
+        $query = "
+            SELECT u.name, u.email, COUNT(r.id) as total_rentals, MAX(r.rental_date) as last_rental_date
+            FROM " . $this->table_name . " u
+            LEFT JOIN rentals r ON u.id = r.user_id
+            GROUP BY u.id, u.name, u.email
+        ";
+        $stmt = $this->conn->prepare($query);
+        $stmt->execute();
+    
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    
+
 }
 ?>

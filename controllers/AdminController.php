@@ -1,8 +1,16 @@
+
 <?php
 
-require_once 'config/database.php';
+
 require_once 'config/utils.php';
+require_once 'config/database.php';
+require_once 'models/Rental.php';
 require_once 'models/Video.php';
+require_once 'helpers/email.php'; 
+require_once 'models/User.php';
+require_once 'models/Payment.php';
+
+
 
 
 class AdminController
@@ -10,20 +18,37 @@ class AdminController
     private $db;
     private $videoModel;
     private $userModel;
+    private $rentalModel;
 
     public function __construct()
     {
-        checkRole('admin'); // Ensure only admins can access this controller
+        checkRole('admin'); 
         $database = new Database();
         $this->db = $database->getConnection();
         $this->videoModel = new Video($this->db);
         $this->userModel = new User($this->db);
+        $this->rentalModel = new Rental($this->db);
+
     }
 
     public function dashboard()
     {
         loadView('admin/dashboard');
     }
+    public function manageReports()
+    {
+        $rentalStats = $this->rentalModel->getRentalStats();
+        $financialStats = $this->rentalModel->getFinancialStats();
+        $userActivityReports = $this->userModel->getUserActivityReports();
+        $users = $this->userModel->readAll(); // Get all users
+        loadView('admin/manageReports', [
+            'rentalStats' => $rentalStats,
+            'financialStats' => $financialStats,
+            'userActivityReports' => $userActivityReports,
+            'users' => $users
+        ]);
+    }
+    
 
     public function manageVideos()
     {
@@ -52,7 +77,7 @@ class AdminController
             $this->videoModel->copies = $_POST['copies'];
             $this->videoModel->price = $_POST['price'];
             
-            // Handle image upload
+
             if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
                 $uploadDir = 'uploads/';
                 $uploadFile = $uploadDir . basename($_FILES['image']['name']);
@@ -85,7 +110,7 @@ class AdminController
             $this->videoModel->copies = $_POST['copies'];
             $this->videoModel->price = $_POST['price'];
             
-            // Handle image upload
+  
             if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
                 $uploadDir = 'uploads/';
                 $uploadFile = $uploadDir . basename($_FILES['image']['name']);
@@ -95,7 +120,7 @@ class AdminController
                     $this->videoModel->image = null;
                 }
             } else {
-                $this->videoModel->image = $_POST['existing_image']; // Keep existing image if no new image is uploaded
+                $this->videoModel->image = $_POST['existing_image']; 
             }
 
             if ($this->videoModel->update()) {
@@ -109,16 +134,26 @@ class AdminController
 
     public function deleteVideo()
     {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $this->videoModel->id = $_POST['id'];
-            if ($this->videoModel->delete()) {
-                header('Location: ' . BASE_URL . '/index.php?controller=admin&action=manageVideos');
-                exit;
-            } else {
-                echo "Unable to delete video.";
-            }
+        $video_id = $_POST['id'];
+        
+        // First delete the associated rentals
+        $rentals = $this->rentalModel->readByVideo($video_id);
+        foreach ($rentals as $rental) {
+            $this->rentalModel->id = $rental['id'];
+            $this->rentalModel->delete();
+        }
+    
+        // Then delete the video
+        $this->videoModel->id = $video_id;
+    
+        if ($this->videoModel->delete()) {
+            header('Location: ' . BASE_URL . '/index.php?controller=admin&action=manageVideos');
+            exit;
+        } else {
+            echo "Unable to delete video.";
         }
     }
+    
 
     public function manageUsers()
     {
@@ -187,45 +222,77 @@ class AdminController
             }
         }
     }
-}
-class UserController
+
+    public function sendReturnReminderToUser()
+    {
+        $userId = $_POST['user_id'];
+        $user = $this->userModel->readOne($userId);
+        $dueSoonRentals = $this->rentalModel->getDueSoonRentalsByUser($userId);
+    
+        foreach ($dueSoonRentals as $rental) {
+            $subject = 'Return Reminder';
+            $message = 'Hello ' . $user['name'] . ",\n\nThis is a reminder to return the video '" . $rental['title'] . "' by " . $rental['due_date'] . ".";
+            sendEmail($user['email'], $subject, $message);
+        }
+    
+        header('Location: ' . BASE_URL . '/index.php?controller=admin&action=manageReports');
+        exit;
+    }
+    
+    public function sendLateFeeAlertToUser()
+    {
+        $userId = $_POST['user_id'];
+        $user = $this->userModel->readOne($userId);
+        $lateRentals = $this->rentalModel->getLateRentalsByUser($userId);
+    
+        foreach ($lateRentals as $rental) {
+            $subject = 'Late Fee Alert';
+            $message = 'Hello ' . $user['name'] . ",\n\nThe video '" . $rental['title'] . "' was due on " . $rental['due_date'] . ". A late fee has been applied.";
+            sendEmail($user['email'], $subject, $message);
+        }
+    
+        header('Location: ' . BASE_URL . '/index.php?controller=admin&action=manageReports');
+        exit;
+    }
+
+
+    // controllers/AdminController.php
+
+public function profile()
 {
-    private $db;
-    private $videoModel;
-    private $rentalModel;
+    $user_id = $_SESSION['user_id'];
+    $user = $this->userModel->readOne($user_id);
 
-    public function __construct()
-    {
-        checkRole('user'); // Ensure only users can access this controller
-        $database = new Database();
-        $this->db = $database->getConnection();
-        $this->videoModel = new Video($this->db);
-        $this->rentalModel = new Rental($this->db);
-    }
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $user['name'] = $_POST['name'];
+        $user['email'] = $_POST['email'];
+        $user['address'] = $_POST['address'];
+        $user['phone'] = $_POST['phone'];
+        if (!empty($_POST['password'])) {
+            $user['password'] = password_hash($_POST['password'], PASSWORD_DEFAULT);
+        }
 
-    public function browseVideos()
-    {
-        $videos = $this->videoModel->readAll();
-        loadView('user/browseVideos', ['videos' => $videos]);
-    }
+        $this->userModel->id = $user_id;
+        $this->userModel->name = $user['name'];
+        $this->userModel->email = $user['email'];
+        $this->userModel->address = $user['address'];
+        $this->userModel->phone = $user['phone'];
+        if (!empty($user['password'])) {
+            $this->userModel->password = $user['password'];
+        }
 
-    public function rentVideo()
-    {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $this->rentalModel->user_id = $_SESSION['user_id'];
-            $this->rentalModel->video_id = $_POST['video_id'];
-            $this->rentalModel->rental_date = date('Y-m-d H:i:s');
-            $this->rentalModel->due_date = date('Y-m-d H:i:s', strtotime('+7 days'));
-            $this->rentalModel->fee = $_POST['fee'];
-
-            if ($this->rentalModel->create()) {
-                header('Location: ' . BASE_URL . '/index.php?controller=user&action=browseVideos');
-                exit;
-            } else {
-                echo "Unable to rent video.";
-            }
+        if ($this->userModel->update()) {
+            header('Location: ' . BASE_URL . '/index.php?controller=admin&action=profile');
+            exit;
+        } else {
+            echo "Unable to update profile.";
         }
     }
+
+    loadView('admin/profile', ['user' => $user]);
+}
+
+    
 }
 
 ?>

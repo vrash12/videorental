@@ -1,1 +1,16 @@
-
+{
+    "name": "mauricio/video-rental-system",
+    "autoload": {
+        "psr-4": {
+            "Mauricio\\VideoRentalSystem\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "lance"
+        }
+    ],
+    "require": {
+        "sendgrid/sendgrid": "^8.1"
+    }
+}

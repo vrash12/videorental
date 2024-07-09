@@ -1,6 +1,6 @@
-<?php
-// controllers/VideoController.php
 
+
+<?php
 class VideoController
 {
     private $db;
@@ -45,6 +45,6 @@ class VideoController
         }
     }
 
-    // Additional methods for updating and deleting videos
+
 }
 ?>
